@@ -2,11 +2,13 @@
  * The project of remote configuration and control of servers on the WildFly platform (JBoss Application Server),
  * so far in development. For authorization in the application registration data of WildFly are used,
  * the server can be chosen from the list.
- * In a consequence I plan to add a feature for the indication of individual registration data for each of servers.
  *
  */
 
 import org.jboss.as.controller.client.ModelControllerClient;
+import org.jboss.as.controller.client.OperationBuilder;
+import org.jboss.as.controller.client.OperationMessageHandler;
+import org.jboss.as.controller.client.OperationResponse;
 import org.jboss.as.controller.client.helpers.ClientConstants;
 import org.jboss.as.controller.client.helpers.Operations;
 import org.jboss.dmr.ModelNode;
@@ -22,9 +24,14 @@ import javax.swing.border.TitledBorder;
 import javax.swing.plaf.nimbus.NimbusLookAndFeel;
 import javax.swing.text.Highlighter;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,12 +42,25 @@ public class Main {
     static JTextArea textArea = new JTextArea();
     static String currentHost;
     static ModelControllerClient client;
+    static boolean stopTrigger = false;
 
     private static JTextField loginTxt = new JTextField(10);
     private static JPasswordField passwordTxt = new JPasswordField(10);
 
+    private static String startDate = GetDate();
+    private static String endDate = GetDate();
+
+    private static int port = 9990;
+    static JTextField portField = new JTextField(5);
+
     static void MessageBox(Exception exception) {
         JOptionPane.showMessageDialog(new JFrame(), exception);
+    }
+
+    static String GetDate() {
+        DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyy_HH-mm-ss");
+        Date data = new Date();
+        return dateFormat.format(data);
     }
 
     static class ReadConfig {
@@ -65,10 +85,10 @@ public class Main {
 
     static class ConnectToHost {
         ConnectToHost(String host) throws IOException {
-            int port = 9990;
+            int localport = Integer.parseInt(portField.getText());
             try {
                 client = ModelControllerClient.Factory.create(
-                        InetAddress.getByName(host), port,
+                        InetAddress.getByName(host), localport,
                         callbacks -> {
                             for (Callback current : callbacks) {
                                 if (current instanceof NameCallback) {
@@ -159,33 +179,29 @@ public class Main {
     }
 
     private static class ServerLogs {
-        ServerLogs(String currentHost) throws IOException {
+        ServerLogs(String currentHost) throws IOException, InvocationTargetException, InterruptedException {
+            File filename = new File("wildfly_server_" + GetDate() + "_" + currentHost + "_.log");
+            FileOutputStream outputStream = new FileOutputStream(filename);
             new ConnectToHost(currentHost);
-            final ModelNode logging = Operations.createReadResourceOperation(Operations.createAddress( "subsystem", "logging", "log-file", "server.log"));
-            logging.get("standalone-runtime").set(true);
-            final ModelNode opLogging = Operations.createReadResourceOperation(logging);
-
-
-            System.out.println("Logging-->  " + opLogging);
+            final ModelNode address = Operations.createAddress("subsystem", "logging", "log-file", "server.log");
+            final ModelNode operation = Operations.createReadResourceOperation(address);
+            operation.get("include-runtime").set(true);
+            final OperationResponse response = client.executeOperation(OperationBuilder.create(operation).build(), OperationMessageHandler.logging);
+            final ModelNode result = response.getResponseNode();
+            final String line = Operations.readResult(result).get("stream").asString();
+            final InputStream stream = response.getInputStream(line).getStream();
+            final byte[] buffer = new byte[64];
+            while (((stream.read(buffer)) != -1) && (!stopTrigger)) {
+                outputStream.write(buffer);
+            }
+            outputStream.close();
         }
-    }
-
-    private void ServerEnvironment() {
-    }
-
-    private static void TriggerEnabled(JButton button) {
-        button.setEnabled(true);
-    }
-
-    private static void ClearingWorkPlace() {
-        textArea.selectAll();
-        textArea.replaceSelection(" ");
     }
 
     static class UI extends JFrame {
         UI() {
             setTitle("WildFly Client");
-            setSize(1045, 550);
+            setSize(1045, 570);
             setLocation(500, 300);
             setLayout(null);
             final JPanel serverPanel = new JPanel();
@@ -211,12 +227,20 @@ public class Main {
             checkedServerLabel.setForeground(Color.RED);
             checkedServerPanel.add(checkedServerLabel);
             final JPanel progressBarPanel = new JPanel();
-            progressBarPanel.setBounds(0, 500, 1035, 20);
+            progressBarPanel.setBounds(0, 500, 850, 40);
             progressBarPanel.setBackground(Color.GRAY);
             progressBarPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-
-            final JProgressBar progressBar = new JProgressBar();
-            progressBar.setBorderPainted(true);
+            final JPanel portPanel = new JPanel();
+            portPanel.setBounds(855, 500, 180, 40);
+            portPanel.setBackground(Color.GRAY);
+            portPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+            JLabel portLabel = new JLabel("Порт подключения:");
+            portLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+            portPanel.add(portLabel);
+            JTextField portField = new JTextField(5);
+            portField.setBounds(855, 500, 180, 20);
+            portField.setText("" + port);
+            portPanel.add(portField);
 
             final String[] localHost = {null};
 
@@ -230,15 +254,14 @@ public class Main {
                 serverButton.addActionListener(e -> {
                     localHost[0] = e.getActionCommand();
                     checkedServerLabel.setText(localHost[0]);
+
                 });
             }
 
             JButton findButton = new JButton();
             findButton.setText("Найти текст");
             findButton.setEnabled(false);
-            findButton.addActionListener(e -> {
-                new FindText();
-            });
+            findButton.addActionListener(e -> new FindText());
 
             JButton listDeployments = new JButton();
             listDeployments.setText("Список приложений");
@@ -256,9 +279,7 @@ public class Main {
 
             JButton clearButton = new JButton();
             clearButton.setText("Очистить окно");
-            clearButton.addActionListener(e -> {
-                ClearingWorkPlace();
-            });
+            clearButton.addActionListener(e -> ClearingWorkPlace());
 
             JButton shutdownButton = new JButton();
             shutdownButton.setText("Выключить!");
@@ -284,17 +305,27 @@ public class Main {
             });
 
             JButton logButton = new JButton();
+            JButton stopButton = new JButton();
+            stopButton.setEnabled(false);
+            stopButton.setText("Остановить загрузку");
+            stopButton.addActionListener((ActionEvent e) -> {
+                stopTrigger = true;
+                textArea.append("[" + endDate + "]: Загрузка логфайла закончена. \n");
+                logButton.setEnabled(true);
+            });
             logButton.setText("Логи WildFly");
             logButton.addActionListener(e -> {
                 ClearingWorkPlace();
-                TriggerEnabled(findButton);
+                textArea.append("[" + startDate + "]: Загрузка логфайла начата. \n");
                 try {
-                    ServerLogs serverLogs = new ServerLogs(localHost[0]);
-                    textArea.append(serverLogs.toString());
+                    stopButton.setEnabled(true);
+                    logButton.setEnabled(false);
+                    new ServerLogs(localHost[0]);
                 } catch (IOException e1) {
                     MessageBox(new Exception(e1));
+                } catch (InterruptedException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-
             });
 
             textArea.setEditable(false);
@@ -308,6 +339,7 @@ public class Main {
             servicePanel.add(params);
             servicePanel.add(clearButton);
             servicePanel.add(logButton);
+            servicePanel.add(stopButton);
             servicePanel.add(shutdownButton);
 
             add(checkedServerPanel);
@@ -315,11 +347,21 @@ public class Main {
             add(propertiesPanel);
             add(servicePanel);
             add(progressBarPanel);
+            add(portPanel);
             setResizable(false);
             setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
             setVisible(true);
         }
 
+    }
+
+    private static void TriggerEnabled(JButton button) {
+        button.setEnabled(true);
+    }
+
+    private static void ClearingWorkPlace() {
+        textArea.selectAll();
+        textArea.replaceSelection(" ");
     }
 
     private static class FindText {
@@ -345,7 +387,7 @@ public class Main {
         Autorization() throws Exception {
             new ReadConfig();
             final boolean[] success = {false};
-            setSize(450, 210);
+            setSize(500, 210);
             setResizable(false);
             setLocation(300, 100);
             setTitle("Авторизация!");
@@ -356,14 +398,15 @@ public class Main {
             formPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
             JPanel selector = new JPanel();
             JLabel selectorLabel = new JLabel("IP адрес сервера для авторизации: ");
-
             JComboBox<String> comboBox = new JComboBox<>();
             for (String aHostList : hostList) {
                 comboBox.addItem(aHostList);
             }
 
+            portField.setText(""+port);
             selector.add(selectorLabel);
             selector.add(comboBox);
+            selector.add(portField);
             JPanel loginPanel = new JPanel();
             JLabel loginLabel = new JLabel("Логин: ");
             loginTxt.setForeground(Color.blue);
@@ -384,12 +427,12 @@ public class Main {
             add(formPanel);
             setVisible(true);
             setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-            String serverSelector = comboBox.getSelectedItem().toString();
             submitButton.addActionListener(e -> {
+                String serverSelector = comboBox.getSelectedItem().toString();
                 try {
                     final ModelNode check = Operations.createOperation("status");
                     ModelControllerClient checkHost = ModelControllerClient.Factory.create(
-                            InetAddress.getByName(serverSelector), 9990,
+                            InetAddress.getByName(serverSelector), Integer.parseInt(portField.getText()),
                             callbacks -> {
                                 for (Callback current : callbacks) {
                                     if (current instanceof NameCallback) {
@@ -429,6 +472,5 @@ public class Main {
             MessageBox(e);
         }
         new Autorization();
-        //new UI();
     }
 }
