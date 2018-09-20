@@ -1,11 +1,5 @@
-/**
- * The project of remote configuration and control of servers on the WildFly platform (JBoss Application Server),
- * so far in development. For authorization in the application registration data of WildFly are used,
- * the server can be chosen from the list.
- *
- */
+package WildFlyClient;
 
-import org.jboss.as.controller.client.ModelControllerClient;
 import org.jboss.as.controller.client.OperationBuilder;
 import org.jboss.as.controller.client.OperationMessageHandler;
 import org.jboss.as.controller.client.OperationResponse;
@@ -13,21 +7,14 @@ import org.jboss.as.controller.client.helpers.ClientConstants;
 import org.jboss.as.controller.client.helpers.Operations;
 import org.jboss.dmr.ModelNode;
 
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-import javax.security.sasl.RealmCallback;
 import javax.swing.*;
 import javax.swing.border.EtchedBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.plaf.nimbus.NimbusLookAndFeel;
 import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
-import java.net.InetAddress;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -35,27 +22,17 @@ import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Main {
+import static WildFlyClient.Main.MessageBox;
+
+class UI {
 
     static ArrayList<String> hostList = new ArrayList<>();
     static ArrayList<String> exportList = new ArrayList<>();
     static JTextArea textArea = new JTextArea();
-    static String currentHost;
-    static ModelControllerClient client;
     static boolean stopTrigger = false;
-
-    private static JTextField loginTxt = new JTextField(10);
-    private static JPasswordField passwordTxt = new JPasswordField(10);
-
     private static String startDate = GetDate();
     private static String endDate = GetDate();
-
-    private static int port = 9990;
-    static JTextField portField = new JTextField(5);
-
-    static void MessageBox(Exception exception) {
-        JOptionPane.showMessageDialog(new JFrame(), exception);
-    }
+    static String selectedHost = null;
 
     static String GetDate() {
         DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyy_HH-mm-ss");
@@ -83,47 +60,14 @@ public class Main {
         }
     }
 
-    static class ConnectToHost {
-        ConnectToHost(String host) throws IOException {
-            int localport = Integer.parseInt(portField.getText());
-            try {
-                client = ModelControllerClient.Factory.create(
-                        InetAddress.getByName(host), localport,
-                        callbacks -> {
-                            for (Callback current : callbacks) {
-                                if (current instanceof NameCallback) {
-                                    NameCallback ncb = (NameCallback) current;
-                                    ncb.setName(loginTxt.getText());
-                                } else if (current instanceof PasswordCallback) {
-                                    PasswordCallback pcb = (PasswordCallback) current;
-                                    //pcb.setPassword(String.valueOf(passwordTxt.getPassword().toCharArray()));
-                                    pcb.setPassword(passwordTxt.getText().toCharArray());
-                                } else if (current instanceof RealmCallback) {
-                                    RealmCallback rcb = (RealmCallback) current;
-                                    rcb.setText(rcb.getDefaultText());
-                                } else {
-                                    throw new UnsupportedCallbackException(current);
-                                }
-                            }
-                        });
-
-
-            } catch (java.net.UnknownHostException e) {
-                MessageBox(new Exception("Ошибка установки соединения с сервером " + currentHost + " " + e));
-            } catch (java.lang.NullPointerException nullEx) {
-                MessageBox(new Exception("Не выбран сервер для загрузки конфигурации! "));
-            }
-        }
-    }
-
     static class Deployments {
         Deployments(final String currentHost) throws IOException {
             exportList.clear();
-            new ConnectToHost(currentHost);
+            new Connection(selectedHost);
             try {
                 final ModelNode op = Operations.createOperation("read-children-resources");
                 op.get(ClientConstants.CHILD_TYPE).set(ClientConstants.DEPLOYMENT);
-                final ModelNode result = client.execute(op);
+                final ModelNode result = Connection.client.execute(op);
                 if (Operations.isSuccessfulOutcome(result)) {
                     final ModelNode deployments = Operations.readResult(result);
                     exportList.add("Установлено подключение к серверу: " + currentHost + "\n");
@@ -145,10 +89,10 @@ public class Main {
 
     static class ShutdownServer {
         ShutdownServer(final String currentHost) throws IOException {
-            new ConnectToHost(currentHost);
+            new Connection(currentHost);
             final ModelNode op = Operations.createOperation("shutdown");
             op.get("restart").set(true);
-            client.execute(op);
+            Connection.client.execute(op);
         }
     }
 
@@ -157,14 +101,14 @@ public class Main {
         ArrayList<ModelNode> attributesList = new ArrayList<>();
         ArrayList<ModelNode> result = new ArrayList<>();
         try {
-            new ConnectToHost(currentHost);
+            new Connection(currentHost);
             final ModelNode address = new ModelNode().setEmptyList();
             final ModelNode serverState = Operations.createReadAttributeOperation(address, "server-state");
             final ModelNode attr = Operations.createOperation("read-config-as-xml");
             attributesList.add(serverState);
             attributesList.add(attr);
             for (ModelNode anAttributesList : attributesList) {
-                result.add(client.execute(anAttributesList));
+                result.add(Connection.client.execute(anAttributesList));
             }
             return result.toString().replace("[", "").replace("]", "").replace(",", "") + "\n";
 
@@ -173,7 +117,7 @@ public class Main {
         } catch (java.lang.NullPointerException nullEx) {
             MessageBox(new Exception("Выбери для начала сервер, а потом уже тыкай!"));
         } finally {
-            client.close();
+            Connection.client.close();
         }
         return null;
     }
@@ -182,11 +126,11 @@ public class Main {
         ServerLogs(String currentHost) throws IOException, InvocationTargetException, InterruptedException {
             File filename = new File("wildfly_server_" + GetDate() + "_" + currentHost + "_.log");
             FileOutputStream outputStream = new FileOutputStream(filename);
-            new ConnectToHost(currentHost);
+            new Connection(currentHost);
             final ModelNode address = Operations.createAddress("subsystem", "logging", "log-file", "server.log");
             final ModelNode operation = Operations.createReadResourceOperation(address);
             operation.get("include-runtime").set(true);
-            final OperationResponse response = client.executeOperation(OperationBuilder.create(operation).build(), OperationMessageHandler.logging);
+            final OperationResponse response = Connection.client.executeOperation(OperationBuilder.create(operation).build(), OperationMessageHandler.logging);
             final ModelNode result = response.getResponseNode();
             final String line = Operations.readResult(result).get("stream").asString();
             final InputStream stream = response.getInputStream(line).getStream();
@@ -198,8 +142,10 @@ public class Main {
         }
     }
 
-    static class UI extends JFrame {
-        UI() {
+    static class Window extends JFrame {
+        static JTextField portField = new JTextField(5);
+
+        Window() {
             setTitle("WildFly Client");
             setSize(1045, 570);
             setLocation(500, 300);
@@ -237,23 +183,20 @@ public class Main {
             JLabel portLabel = new JLabel("Порт подключения:");
             portLabel.setFont(new Font("Arial", Font.PLAIN, 10));
             portPanel.add(portLabel);
-            JTextField portField = new JTextField(5);
+            portField.getText();
+            portField.setText("9990");
             portField.setBounds(855, 500, 180, 20);
-            portField.setText("" + port);
             portPanel.add(portField);
-
-            final String[] localHost = {null};
 
             for (final String aHostList : hostList) {
                 final JButton serverButton = new JButton();
                 serverButton.setSize(90, 30);
                 serverButton.setText(aHostList);
                 serverPanel.add(serverButton);
-                localHost[0] = serverButton.getText();
-
+                selectedHost = serverButton.getText();
                 serverButton.addActionListener(e -> {
-                    localHost[0] = e.getActionCommand();
-                    checkedServerLabel.setText(localHost[0]);
+                    selectedHost = e.getActionCommand();
+                    checkedServerLabel.setText(selectedHost);
 
                 });
             }
@@ -269,7 +212,7 @@ public class Main {
                 TriggerEnabled(findButton);
                 ClearingWorkPlace();
                 try {
-                    new Deployments(localHost[0]);
+                    new Deployments(selectedHost);
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
@@ -285,7 +228,7 @@ public class Main {
             shutdownButton.setText("Выключить!");
             shutdownButton.addActionListener(e -> {
                 try {
-                    new ShutdownServer(localHost[0]);
+                    new ShutdownServer(selectedHost);
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
@@ -298,7 +241,7 @@ public class Main {
                 ClearingWorkPlace();
                 TriggerEnabled(findButton);
                 try {
-                    textArea.append(ServerParameters(localHost[0]));
+                    textArea.append(ServerParameters(selectedHost));
                 } catch (IOException e1) {
                     MessageBox(new Exception(e1));
                 }
@@ -320,7 +263,7 @@ public class Main {
                 try {
                     stopButton.setEnabled(true);
                     logButton.setEnabled(false);
-                    new ServerLogs(localHost[0]);
+                    new ServerLogs(selectedHost);
                 } catch (IOException e1) {
                     MessageBox(new Exception(e1));
                 } catch (InterruptedException | InvocationTargetException e1) {
@@ -380,97 +323,5 @@ public class Main {
                 MessageBox(new Exception(nEx));
             }
         }
-    }
-
-
-    private static class Autorization extends JFrame {
-        Autorization() throws Exception {
-            new ReadConfig();
-            final boolean[] success = {false};
-            setSize(500, 210);
-            setResizable(false);
-            setLocation(300, 100);
-            setTitle("Авторизация!");
-            setLayout(null);
-            JPanel formPanel = new JPanel(new BorderLayout());
-            formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
-            formPanel.setBounds(1, 1, getWidth() - 10, getHeight() - 10);
-            formPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-            JPanel selector = new JPanel();
-            JLabel selectorLabel = new JLabel("IP адрес сервера для авторизации: ");
-            JComboBox<String> comboBox = new JComboBox<>();
-            for (String aHostList : hostList) {
-                comboBox.addItem(aHostList);
-            }
-
-            portField.setText(""+port);
-            selector.add(selectorLabel);
-            selector.add(comboBox);
-            selector.add(portField);
-            JPanel loginPanel = new JPanel();
-            JLabel loginLabel = new JLabel("Логин: ");
-            loginTxt.setForeground(Color.blue);
-            loginPanel.add(loginLabel);
-            loginPanel.add(loginTxt);
-            JPanel passPanel = new JPanel();
-            JLabel passwordLabel = new JLabel("Пароль: ");
-            passwordTxt.setForeground(Color.blue);
-            passPanel.add(passwordLabel);
-            passPanel.add(passwordTxt);
-            JPanel buttonPanel = new JPanel();
-            JButton submitButton = new JButton("Подтвердить");
-            buttonPanel.add(submitButton);
-            formPanel.add(selector);
-            formPanel.add(loginPanel);
-            formPanel.add(passPanel);
-            formPanel.add(buttonPanel);
-            add(formPanel);
-            setVisible(true);
-            setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-            submitButton.addActionListener(e -> {
-                String serverSelector = comboBox.getSelectedItem().toString();
-                try {
-                    final ModelNode check = Operations.createOperation("status");
-                    ModelControllerClient checkHost = ModelControllerClient.Factory.create(
-                            InetAddress.getByName(serverSelector), Integer.parseInt(portField.getText()),
-                            callbacks -> {
-                                for (Callback current : callbacks) {
-                                    if (current instanceof NameCallback) {
-                                        NameCallback ncb = (NameCallback) current;
-                                        ncb.setName(loginTxt.getText());
-                                    } else if (current instanceof PasswordCallback) {
-                                        PasswordCallback pcb = (PasswordCallback) current;
-                                        pcb.setPassword(passwordTxt.getText().toCharArray());
-                                    } else if (current instanceof RealmCallback) {
-                                        RealmCallback rcb = (RealmCallback) current;
-                                        rcb.setText(rcb.getDefaultText());
-                                    } else {
-                                        throw new UnsupportedCallbackException(current);
-                                    }
-                                }
-                            });
-                    checkHost.execute(check);
-                    success[0] = true;
-
-                } catch (IOException e1) {
-                    MessageBox(new Exception("Ошибка установки соединения с сервером " + serverSelector + " или неверный пароль! "));
-                    success[0] = false;
-                }
-                if (success[0]) {
-                    new UI();
-                    setVisible(false);
-                }
-            });
-        }
-    }
-
-
-    public static void main(String[] args) throws Exception {
-        try {
-            UIManager.setLookAndFeel(new NimbusLookAndFeel());
-        } catch (UnsupportedLookAndFeelException e) {
-            MessageBox(e);
-        }
-        new Autorization();
     }
 }
