@@ -27,7 +27,7 @@ class Autorization {
         JFrame autorizationFrame = new JFrame();
         new UI.ReadConfig();
         final boolean[] success = new boolean[1];
-        autorizationFrame.setSize(500, 210);
+        autorizationFrame.setSize(450, 210);
         autorizationFrame.setResizable(false);
         autorizationFrame.setLocation(300, 100);
         autorizationFrame.setTitle("Авторизация!");
@@ -45,6 +45,7 @@ class Autorization {
         selector.add(selectorLabel);
         selector.add(comboBox);
         portField.setText("9990");
+        portField.setForeground(Color.blue);
         selector.add(portField);
         JPanel loginPanel = new JPanel();
         JLabel loginLabel = new JLabel("Логин: ");
@@ -59,10 +60,13 @@ class Autorization {
         JPanel buttonPanel = new JPanel();
         JButton submitButton = new JButton("Подтвердить");
         buttonPanel.add(submitButton);
+        JPanel fill = new JPanel();
         formPanel.add(selector);
         formPanel.add(loginPanel);
         formPanel.add(passPanel);
         formPanel.add(buttonPanel);
+        formPanel.add(fill);
+        formPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
         autorizationFrame.add(formPanel);
         autorizationFrame.setVisible(true);
         autorizationFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);

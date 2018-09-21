@@ -10,6 +10,8 @@ import org.jboss.dmr.ModelNode;
 import javax.swing.*;
 import javax.swing.border.EtchedBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -50,14 +52,53 @@ class UI {
                     hostList.add(line);
                 }
                 reader.close();
-            } catch (FileNotFoundException exf) {
+            } catch (FileNotFoundException e) {
                 MessageBox(new Exception("Не найден файл!"));
                 System.exit(0);
-            } catch (NullPointerException exn) {
-                MessageBox(new Exception(exn));
+            } catch (NullPointerException e) {
+                MessageBox(new Exception(e));
                 System.exit(0);
             }
         }
+    }
+
+    private static class FindText {
+        FindText() {
+            try {
+                String findText = PopupsWindows("FIND", "Поиск текста", "");
+                if (findText.equals("")) {
+                    PopupsWindows("ERROR", "Пустая строка!", "Ошибка");
+                    new FindText();
+                }
+                Highlighter highlighter = textArea.getHighlighter();
+                Highlighter.HighlightPainter painter = new DefaultHighlighter.DefaultHighlightPainter(Color.ORANGE);
+                Pattern pattern = Pattern.compile(findText.trim());
+                Matcher matcher = pattern.matcher(textArea.getText());
+                if (matcher.matches()) {
+                    int start = findText.indexOf(findText);
+                    int end = start + findText.length();
+                    highlighter.addHighlight(start, end, painter);
+                }
+
+            } catch (NullPointerException | BadLocationException e) {
+                MessageBox(e);
+            }
+        }
+    }
+
+    private static String PopupsWindows(String option, String textInWin, String title) {
+        String inputText = null;
+        if (option.equals("FIND")) {
+            UIManager.put("OptionPane.okButtonText", "ok");
+            UIManager.put("OptionPane.cancelButtonText", "cancel");
+            inputText = JOptionPane.showInputDialog(null, textInWin, title, JOptionPane.PLAIN_MESSAGE);
+        }
+        if (option.equals("ERROR")) {
+            UIManager.put("OptionPane.okButtonText", "Ok");
+            JOptionPane.showMessageDialog(new JFrame(), textInWin, title,
+                    JOptionPane.ERROR_MESSAGE);
+        }
+        return inputText;
     }
 
     static class Deployments {
@@ -72,17 +113,19 @@ class UI {
                     final ModelNode deployments = Operations.readResult(result);
                     exportList.add("Установлено подключение к серверу: " + currentHost + "\n");
                     exportList.add("Список задеплоеных приложений:  " + "\n");
+                    exportList.add("----------------------------------\n");
                     for (String deploymentName : deployments.keys()) {
                         final ModelNode deploymentDetails = deployments.get(deploymentName);
                         exportList.add("NAME DEPLOYMENT: " + deploymentDetails.get("runtime-name") + "\n");
                         exportList.add("ENABLED: " + deploymentDetails.get("enabled") + "\n");
+                        exportList.add("---------------------------------------------------------\n");
 
                     }
                 } else {
                     MessageBox(new Exception("Failed to list deployments: " + Operations.getFailureDescription(result).asString()));
                 }
-            } catch (IOException ex) {
-                MessageBox(new Exception(ex));
+            } catch (IOException e) {
+                MessageBox(new Exception(e));
             }
         }
     }
@@ -114,7 +157,7 @@ class UI {
 
         } catch (IOException serverParametersException) {
             MessageBox(new Exception("Невозможно загрузить параметры сервера ", serverParametersException));
-        } catch (java.lang.NullPointerException nullEx) {
+        } catch (java.lang.NullPointerException e) {
             MessageBox(new Exception("Выбери для начала сервер, а потом уже тыкай!"));
         } finally {
             Connection.client.close();
@@ -147,12 +190,12 @@ class UI {
 
         Window() {
             setTitle("WildFly Client");
-            setSize(1045, 570);
+            setSize(1045, 575);
             setLocation(500, 300);
             setLayout(null);
             final JPanel serverPanel = new JPanel();
             serverPanel.setBackground(Color.LIGHT_GRAY);
-            serverPanel.setBounds(0, 5, 150, 490);
+            serverPanel.setBounds(5, 5, 145, 490);
             serverPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
             final JScrollPane scrollPane = new JScrollPane(textArea);
             scrollPane.setPreferredSize(new Dimension(700, 490));
@@ -173,12 +216,12 @@ class UI {
             checkedServerLabel.setForeground(Color.RED);
             checkedServerPanel.add(checkedServerLabel);
             final JPanel progressBarPanel = new JPanel();
-            progressBarPanel.setBounds(0, 500, 850, 40);
-            progressBarPanel.setBackground(Color.GRAY);
+            progressBarPanel.setBounds(5, 500, 845, 38);
+            progressBarPanel.setBackground(Color.LIGHT_GRAY);
             progressBarPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
             final JPanel portPanel = new JPanel();
-            portPanel.setBounds(855, 500, 180, 40);
-            portPanel.setBackground(Color.GRAY);
+            portPanel.setBounds(855, 500, 180, 38);
+            portPanel.setBackground(Color.LIGHT_GRAY);
             portPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
             JLabel portLabel = new JLabel("Порт подключения:");
             portLabel.setFont(new Font("Arial", Font.PLAIN, 10));
@@ -214,7 +257,7 @@ class UI {
                 try {
                     new Deployments(selectedHost);
                 } catch (IOException e1) {
-                    e1.printStackTrace();
+                    MessageBox(new Exception(e1));
                 }
                 textArea.append(exportList.toString().replace("[", "").replace("]", "").replace(",", ""));
 
@@ -230,7 +273,7 @@ class UI {
                 try {
                     new ShutdownServer(selectedHost);
                 } catch (IOException e1) {
-                    e1.printStackTrace();
+                    MessageBox(new Exception(e1));
                 }
             });
 
@@ -264,10 +307,8 @@ class UI {
                     stopButton.setEnabled(true);
                     logButton.setEnabled(false);
                     new ServerLogs(selectedHost);
-                } catch (IOException e1) {
+                } catch (IOException | InterruptedException | InvocationTargetException e1) {
                     MessageBox(new Exception(e1));
-                } catch (InterruptedException | InvocationTargetException e1) {
-                    e1.printStackTrace();
                 }
             });
 
@@ -305,23 +346,5 @@ class UI {
     private static void ClearingWorkPlace() {
         textArea.selectAll();
         textArea.replaceSelection(" ");
-    }
-
-    private static class FindText {
-        FindText() {
-            try {
-                Highlighter hightLight = textArea.getHighlighter();
-                Object findText = JOptionPane.showInputDialog("Поиск текста", "");
-                Pattern pattern = Pattern.compile("\b" + findText + "\b");
-                Matcher matcher = pattern.matcher(String.valueOf(findText));
-                boolean matchFound = matcher.matches();
-                System.out.println(matchFound);
-                System.out.println(pattern.toString());
-
-
-            } catch (NullPointerException nEx) {
-                MessageBox(new Exception(nEx));
-            }
-        }
     }
 }

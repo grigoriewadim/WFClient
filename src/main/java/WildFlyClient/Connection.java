@@ -43,7 +43,7 @@ class Connection {
 
         } catch (java.net.UnknownHostException e) {
             MessageBox(new Exception("Ошибка установки соединения с сервером " + currentHost + " " + e));
-        } catch (java.lang.NullPointerException nullEx) {
+        } catch (java.lang.NullPointerException e) {
             MessageBox(new Exception("Не выбран сервер для загрузки конфигурации! "));
         }
     }
