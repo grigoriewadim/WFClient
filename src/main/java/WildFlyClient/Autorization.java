@@ -74,7 +74,7 @@ class Autorization {
             String serverSelector = comboBox.getSelectedItem().toString();
             try {
                 final ModelNode check = Operations.createOperation("status");
-                ModelControllerClient checkHost = ModelControllerClient.Factory.create(
+                final ModelControllerClient checkHost = ModelControllerClient.Factory.create(
                         InetAddress.getByName(serverSelector), Integer.parseInt(portField.getText()),
                         callbacks -> {
                             for (Callback current : callbacks) {

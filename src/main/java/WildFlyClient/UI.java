@@ -12,17 +12,18 @@ import javax.swing.border.EtchedBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
+import javax.swing.text.Document;
 import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static WildFlyClient.Main.MessageBox;
 
@@ -68,20 +69,22 @@ class UI {
                 String findText = PopupsWindows("FIND", "Поиск текста", "");
                 if (findText.equals("")) {
                     PopupsWindows("ERROR", "Пустая строка!", "Ошибка");
-                    new FindText();
+
                 }
                 Highlighter highlighter = textArea.getHighlighter();
                 Highlighter.HighlightPainter painter = new DefaultHighlighter.DefaultHighlightPainter(Color.ORANGE);
-                Pattern pattern = Pattern.compile(findText.trim());
-                Matcher matcher = pattern.matcher(textArea.getText());
-                if (matcher.matches()) {
-                    int start = findText.indexOf(findText);
-                    int end = start + findText.length();
-                    highlighter.addHighlight(start, end, painter);
+                Document doc = textArea.getDocument();
+                String text = doc.getText(0, doc.getLength());
+                int position = 0;
+                while ((position = text.indexOf(findText, position)) >= 0) {
+                    highlighter.addHighlight(position, position + findText.length(), painter);
+                    position += findText.length();
                 }
 
-            } catch (NullPointerException | BadLocationException e) {
+            } catch (BadLocationException e) {
                 MessageBox(e);
+            } catch (NullPointerException e) {
+                //
             }
         }
     }
@@ -185,6 +188,14 @@ class UI {
         }
     }
 
+    static class WorkPanel {
+        WorkPanel(int x, int y, int width, int height, JPanel panel) {
+            panel.setBounds(x, y, width, height);
+            panel.setBackground(Color.lightGray);
+            panel.setBorder(BorderFactory.createLineBorder(Color.black));
+        }
+    }
+
     static class Window extends JFrame {
         static JTextField portField = new JTextField(5);
 
@@ -194,9 +205,15 @@ class UI {
             setLocation(500, 300);
             setLayout(null);
             final JPanel serverPanel = new JPanel();
-            serverPanel.setBackground(Color.LIGHT_GRAY);
-            serverPanel.setBounds(5, 5, 145, 490);
-            serverPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+            final JPanel servicePanel = new JPanel();
+            final JPanel checkedServerPanel = new JPanel();
+            final JPanel progressBarPanel = new JPanel();
+            final JPanel portPanel = new JPanel();
+            new WorkPanel(5, 5, 145, 490, serverPanel);
+            new WorkPanel(860, 5, 175, 430, servicePanel);
+            new WorkPanel(860, 440, 175, 55, checkedServerPanel);
+            new WorkPanel(5, 500, 845, 38, progressBarPanel);
+            new WorkPanel(855, 500, 180, 38, portPanel);
             final JScrollPane scrollPane = new JScrollPane(textArea);
             scrollPane.setPreferredSize(new Dimension(700, 490));
             scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
@@ -204,25 +221,10 @@ class UI {
             propertiesPanel.setBounds(155, 0, 700, 495);
             propertiesPanel.add(scrollPane);
             scrollPane.setVisible(true);
-            final JPanel servicePanel = new JPanel();
-            servicePanel.setBackground(Color.lightGray);
-            servicePanel.setBounds(860, 5, 175, 430);
-            servicePanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-            final JPanel checkedServerPanel = new JPanel();
-            checkedServerPanel.setBounds(860, 440, 175, 55);
-            checkedServerPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
             final JLabel checkedServerLabel = new JLabel();
             checkedServerLabel.setFont(new Font("Arial", Font.BOLD, 16));
             checkedServerLabel.setForeground(Color.RED);
             checkedServerPanel.add(checkedServerLabel);
-            final JPanel progressBarPanel = new JPanel();
-            progressBarPanel.setBounds(5, 500, 845, 38);
-            progressBarPanel.setBackground(Color.LIGHT_GRAY);
-            progressBarPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-            final JPanel portPanel = new JPanel();
-            portPanel.setBounds(855, 500, 180, 38);
-            portPanel.setBackground(Color.LIGHT_GRAY);
-            portPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK));
             JLabel portLabel = new JLabel("Порт подключения:");
             portLabel.setFont(new Font("Arial", Font.PLAIN, 10));
             portPanel.add(portLabel);
@@ -309,6 +311,34 @@ class UI {
                     new ServerLogs(selectedHost);
                 } catch (IOException | InterruptedException | InvocationTargetException e1) {
                     MessageBox(new Exception(e1));
+                }
+            });
+
+            textArea.addMouseListener(new MouseListener() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    Highlighter highlighter = textArea.getHighlighter();
+                    highlighter.removeAllHighlights();
+                }
+
+                @Override
+                public void mousePressed(MouseEvent e) {
+
+                }
+
+                @Override
+                public void mouseReleased(MouseEvent e) {
+
+                }
+
+                @Override
+                public void mouseEntered(MouseEvent e) {
+
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+
                 }
             });
 
