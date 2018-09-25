@@ -22,15 +22,13 @@ import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
+import java.util.*;
 
 import static WildFlyClient.Main.MessageBox;
 
 class UI {
 
     static ArrayList<String> hostList = new ArrayList<>();
-    static ArrayList<String> exportList = new ArrayList<>();
     static JTextArea textArea = new JTextArea();
     static boolean stopTrigger = false;
     private static String startDate = GetDate();
@@ -104,38 +102,77 @@ class UI {
         return inputText;
     }
 
-    static class Deployments {
-        Deployments(final String currentHost) throws IOException {
-            exportList.clear();
+    static class StatusDeployments {
+        StatusDeployments() throws IOException {
             new Connection(selectedHost);
+            HashMap<String, String> map = new HashMap<>();
             try {
-                final ModelNode op = Operations.createOperation("read-children-resources");
-                op.get(ClientConstants.CHILD_TYPE).set(ClientConstants.DEPLOYMENT);
-                final ModelNode result = Connection.client.execute(op);
-                if (Operations.isSuccessfulOutcome(result)) {
-                    final ModelNode deployments = Operations.readResult(result);
-                    exportList.add("Установлено подключение к серверу: " + currentHost + "\n");
-                    exportList.add("Список задеплоеных приложений:  " + "\n");
-                    exportList.add("----------------------------------\n");
-                    for (String deploymentName : deployments.keys()) {
-                        final ModelNode deploymentDetails = deployments.get(deploymentName);
-                        exportList.add("NAME DEPLOYMENT: " + deploymentDetails.get("runtime-name") + "\n");
-                        exportList.add("ENABLED: " + deploymentDetails.get("enabled") + "\n");
-                        exportList.add("---------------------------------------------------------\n");
-
-                    }
-                } else {
-                    MessageBox(new Exception("Failed to list deployments: " + Operations.getFailureDescription(result).asString()));
+                JFrame statusFrame = new JFrame(selectedHost);
+                JPanel statusPanel = new JPanel();
+                statusFrame.setSize(300, 700);
+                final ModelNode names = Operations.createOperation("read-children-resources");
+                names.get(ClientConstants.CHILD_TYPE).set(ClientConstants.DEPLOYMENT);
+                final ModelNode nameResult = Connection.client.execute(names);
+                final ModelNode deployments = Operations.readResult(nameResult);
+                for (String name : deployments.keys()) {
+                    final ModelNode namesList = deployments.get(name);
+                    map.put(Arrays.toString(namesList.get("runtime-name").toString().split(",")),
+                            Arrays.toString(namesList.get("enabled").toString().split(",")) + "\n");
                 }
-            } catch (IOException e) {
+                for (Map.Entry<String, String> entry : map.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    if (value.contains("true")) {
+                        final JButton deploymentsButton = new JButton();
+                        deploymentsButton.setText(key);
+                        deploymentsButton.setBackground(Color.GREEN);
+                        statusPanel.add(deploymentsButton);
+                        deploymentsButton.addActionListener(e -> {
+                            ModelNode application = Operations.createAddress(key);
+                            ModelNode opDisable = Operations.createOperation("add", application);
+                            opDisable.get("enabled").set("false");
+                            try {
+                                ModelNode disable = Connection.client.execute(opDisable);
+                                ModelNode result = Operations.readResult(disable);
+                                textArea.append(result.toString());
+                            } catch (IOException e1) {
+                                e1.printStackTrace();
+                            }
+
+                        });
+                    } else if (value.contains("false")) {
+                        final JButton deploymentsButton = new JButton();
+                        deploymentsButton.setText(key);
+                        deploymentsButton.setBackground(Color.red);
+                        statusPanel.add(deploymentsButton);
+                        deploymentsButton.addActionListener(e -> {
+                            ModelNode opEnable = Operations.createOperation("add");
+                            opEnable.get("enabled").set("true");
+                            try {
+                                Connection.client.execute(opEnable);
+                            } catch (IOException e1) {
+                                e1.printStackTrace();
+                            }
+                        });
+                    }
+                }
+
+                statusFrame.setUndecorated(false);
+                statusFrame.add(statusPanel);
+                statusFrame.setResizable(false);
+                statusFrame.setVisible(true);
+                statusFrame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+
+            } catch (IllegalArgumentException e) {
                 MessageBox(new Exception(e));
             }
+
         }
     }
 
     static class ShutdownServer {
-        ShutdownServer(final String currentHost) throws IOException {
-            new Connection(currentHost);
+        ShutdownServer() throws IOException {
+            new Connection(selectedHost);
             final ModelNode op = Operations.createOperation("shutdown");
             op.get("restart").set(true);
             Connection.client.execute(op);
@@ -246,24 +283,20 @@ class UI {
                 });
             }
 
+            JButton statusDeployments = new JButton();
+            statusDeployments.setText("Status");
+            statusDeployments.addActionListener(e -> {
+                try {
+                    new StatusDeployments();
+                } catch (IOException e1) {
+                    MessageBox(new Exception(e1));
+                }
+            });
+
             JButton findButton = new JButton();
             findButton.setText("Найти текст");
             findButton.setEnabled(false);
             findButton.addActionListener(e -> new FindText());
-
-            JButton listDeployments = new JButton();
-            listDeployments.setText("Список приложений");
-            listDeployments.addActionListener(e -> {
-                TriggerEnabled(findButton);
-                ClearingWorkPlace();
-                try {
-                    new Deployments(selectedHost);
-                } catch (IOException e1) {
-                    MessageBox(new Exception(e1));
-                }
-                textArea.append(exportList.toString().replace("[", "").replace("]", "").replace(",", ""));
-
-            });
 
             JButton clearButton = new JButton();
             clearButton.setText("Очистить окно");
@@ -273,7 +306,7 @@ class UI {
             shutdownButton.setText("Выключить!");
             shutdownButton.addActionListener(e -> {
                 try {
-                    new ShutdownServer(selectedHost);
+                    new ShutdownServer();
                 } catch (IOException e1) {
                     MessageBox(new Exception(e1));
                 }
@@ -348,13 +381,14 @@ class UI {
             textArea.setBorder(new TitledBorder(new EtchedBorder(), "Текущиий СТАТУС: "));
             textArea.setForeground(Color.BLACK);
 
+            servicePanel.add(statusDeployments);
             servicePanel.add(findButton);
-            servicePanel.add(listDeployments);
             servicePanel.add(params);
             servicePanel.add(clearButton);
             servicePanel.add(logButton);
             servicePanel.add(stopButton);
             servicePanel.add(shutdownButton);
+            servicePanel.add(statusDeployments);
 
             add(checkedServerPanel);
             add(serverPanel);

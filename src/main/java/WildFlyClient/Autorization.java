@@ -51,11 +51,13 @@ class Autorization {
         JLabel loginLabel = new JLabel("Логин: ");
         loginTxt.setForeground(Color.blue);
         loginPanel.add(loginLabel);
+        loginTxt.setText("admin");
         loginPanel.add(loginTxt);
         JPanel passPanel = new JPanel();
         JLabel passwordLabel = new JLabel("Пароль: ");
         passwordTxt.setForeground(Color.blue);
         passPanel.add(passwordLabel);
+        passwordTxt.setText("admin");
         passPanel.add(passwordTxt);
         JPanel buttonPanel = new JPanel();
         JButton submitButton = new JButton("Подтвердить");
