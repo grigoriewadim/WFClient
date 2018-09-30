@@ -1,10 +1,13 @@
 package WildFlyClient;
 
 /*
-    Класс для всех функциональных классов которые задействованы в UI
+    Класс для всех функциональных классов и методов задействованных в UI
 * */
 
+import org.jboss.aesh.console.command.CommandResult;
 import org.jboss.as.cli.CliInitializationException;
+import org.jboss.as.cli.CommandFormatException;
+import org.jboss.as.cli.CommandLineException;
 import org.jboss.as.controller.client.OperationBuilder;
 import org.jboss.as.controller.client.OperationMessageHandler;
 import org.jboss.as.controller.client.OperationResponse;
@@ -26,8 +29,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static WildFlyClient.Main.MessageBox;
-import static WildFlyClient.UI.stopTrigger;
-import static WildFlyClient.UI.textArea;
+import static WildFlyClient.UI.*;
 
 class Functions {
 
@@ -92,27 +94,6 @@ class Functions {
         }
     }
 
-    static String PopupsWindows(String option, String textInWin, String title) { // Метод для вызова различнх форм, в зависимости от "option"
-        String inputText = null;
-        if (option.equals("FIND")) {
-            UIManager.put("OptionPane.okButtonText", "ok");
-            UIManager.put("OptionPane.cancelButtonText", "cancel");
-            inputText = JOptionPane.showInputDialog(null, textInWin, title, JOptionPane.PLAIN_MESSAGE);
-        }
-        if (option.equals("ERROR")) {
-            UIManager.put("OptionPane.okButtonText", "Ok");
-            JOptionPane.showMessageDialog(new JFrame(), textInWin, title,
-                    JOptionPane.ERROR_MESSAGE);
-        }
-        if (option.equals("SUCCESS")) {
-            UIManager.put("OptionPane.okButtonText", "Ok");
-            JOptionPane.showMessageDialog(new JFrame(), textInWin, title,
-                    JOptionPane.PLAIN_MESSAGE);
-        }
-
-        return inputText;
-    }
-
     static class ShutdownServer {  // Класс для вызова команды перезагрузки сервера
         ShutdownServer() throws IOException {
             new Connection(selectedHost);
@@ -168,7 +149,8 @@ class Functions {
         }
     }
 
-    static class DeploymentsButtons { //Класс для прорисовки JButton's из HashMap c именем модуля и статусом вкл/выкл. Функция disable/enable в процессе реализации
+    static class DeploymentsButtons { //Класс для прорисовки JButton's из HashMap c именем модуля и статусом вкл/выкл.
+        // Функция disable/enable в процессе реализации
         static JPanel appContainer = new JPanel();
 
         DeploymentsButtons(String key, String value) throws IOException, CliInitializationException {
@@ -178,17 +160,16 @@ class Functions {
                 deploymentsButton.setText(appName);
                 deploymentsButton.setBackground(Color.GREEN);
                 appContainer.add(deploymentsButton);
-//                String request = "/deployment=moskito-inspect-standalone-2.9.0.war/:write-attribute(name=enabled,value=true)";
-//                final ModelNode address = new ModelNode().setEmptyList();
+                String request = "/deployment=*/:read-operation-names(access-control=true)";
+                CommandResult[] printTrace = CommandResult.values();
                 deploymentsButton.addActionListener(e -> {
                     try {
-                        ModelNode op = new ModelNode();
-                        op.get("operation").set("read-operation-description");
-                        op.get("name").set("read-attribute");
-                        final ModelNode result = Connection.client.execute(op);
-                        textArea.append(result.asString());
-                    } catch (IOException e1) {
-                        e1.printStackTrace();
+                        Connection.client.close();
+                        Connection.ctx.connectController();
+                        Connection.ctx.handle(request);
+                        textArea.append(Arrays.toString(printTrace));
+                    } catch (CommandLineException | IOException e1) {
+                        textArea.append(String.valueOf(e1));
                     }
 
                 });
@@ -228,6 +209,34 @@ class Functions {
                 MessageBox(new Exception(e));
             }
 
+        }
+    }
+
+    static class DeployApplication {
+        DeployApplication() {
+            String request = "deploy --name=";
+            File file;
+            String name;
+            String runtimeName;
+            boolean status;
+            PopupsWindows("DEPLOY", "Введите параметры: ", "Добавление приложения");
+
+        }
+    }
+
+    static class UndeployApplication {
+        UndeployApplication() throws IOException {
+            String nameApplication = PopupsWindows("UNDEPLOY", "Runtime-Name удаляемого приложения: ", ""+selectedHost);
+            String request = "undeploy --name " + nameApplication;
+            try {
+                Connection.client.close();
+                Connection.ctx.connectController();
+                Connection.ctx.handle(request);
+            } catch (CommandFormatException e1) {
+                MessageBox(new Exception("Не корректно введено название!\n" + e1));
+            } catch (CommandLineException e1) {
+                MessageBox(new Exception(e1));
+            }
         }
     }
 

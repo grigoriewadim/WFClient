@@ -4,6 +4,8 @@ package WildFlyClient;
     Класс отвечающий за создание подключения к серверу WildFly
 * */
 
+import org.jboss.as.cli.CommandContext;
+import org.jboss.as.cli.CommandLineException;
 import org.jboss.as.controller.client.ModelControllerClient;
 
 import javax.security.auth.callback.Callback;
@@ -20,6 +22,7 @@ class Connection {
     private final String loginTxt = Autorization.loginTxt.getText();    //Используем учетные данные из полей введенных в поля формы авторизации
     private final String passwordTxt = Autorization.passwordTxt.getText();
     static ModelControllerClient client;
+    static CommandContext ctx;
 
     Connection(String currentHost) throws IOException {
         int localport = Integer.parseInt(UI.Window.portField.getText());
@@ -49,6 +52,13 @@ class Connection {
             MessageBox(new Exception("Ошибка установки соединения с сервером " + currentHost + " " + e));
         } catch (java.lang.NullPointerException e) {
             MessageBox(new Exception("Не выбран сервер для загрузки конфигурации! "));
+        }
+
+        try {
+            ctx = org.jboss.as.cli.CommandContextFactory.getInstance().newCommandContext(currentHost, loginTxt, passwordTxt.toCharArray());
+        } catch (CommandLineException e) {
+            MessageBox(new Exception("Ошибка модуля CommanContext при подключении к серверу "
+                    + currentHost + " " + e));
         }
     }
 }

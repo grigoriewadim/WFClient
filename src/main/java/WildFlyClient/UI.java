@@ -6,6 +6,8 @@ package WildFlyClient;
 import javax.swing.*;
 import javax.swing.border.EtchedBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.event.MouseEvent;
@@ -29,6 +31,62 @@ class UI {
     private static void ClearingWorkPlace() {
         textArea.selectAll();
         textArea.replaceSelection(" ");
+    }
+
+    static String PopupsWindows(String option, String textInWin, String title) { // Метод для вызова различнх форм, в зависимости от "option"
+        String inputText = null;
+        if (option.equals("FIND")) {
+            UIManager.put("OptionPane.okButtonText", "ok");
+            UIManager.put("OptionPane.cancelButtonText", "cancel");
+            inputText = JOptionPane.showInputDialog(null, textInWin, title, JOptionPane.PLAIN_MESSAGE);
+        }
+        if (option.equals("ERROR")) {
+            UIManager.put("OptionPane.okButtonText", "Ok");
+            JOptionPane.showMessageDialog(new JFrame(), textInWin, title,
+                    JOptionPane.ERROR_MESSAGE);
+        }
+        if (option.equals("SUCCESS")) {
+            UIManager.put("OptionPane.okButtonText", "Ok");
+            JOptionPane.showMessageDialog(new JFrame(), textInWin, title,
+                    JOptionPane.PLAIN_MESSAGE);
+        }
+        if (option.equals("UNDEPLOY")) {
+            UIManager.put("OptionPane.okButtonText", "ok");
+            UIManager.put("OptionPane.cancelButtonText", "cancel");
+            inputText = JOptionPane.showInputDialog(null, textInWin, title, JOptionPane.PLAIN_MESSAGE);
+        }
+        if (option.equals("DEPLOY")) {
+            String name = "";
+            String runtimeName = "";
+            String status = "";
+            Object[] fields = {
+                    "Name:", name,
+                    "Runtime-Name:", runtimeName,
+                    "Enabled?", status,
+            };
+            JTextField nameField = new JTextField(name);
+            JTextField runtimenameFild = new JTextField(runtimeName);
+            JCheckBox statusBox = new JCheckBox(status);
+            String inputName;
+            String inputRuntime;
+            JOptionPane.showInputDialog(null, fields);
+            statusBox.addChangeListener(new ChangeListener() {
+                @Override
+                public void stateChanged(ChangeEvent e) {
+                    if (e.getSource() == statusBox) {
+                        if (statusBox.isSelected()) {
+                            boolean inputStatus = true;
+                        } else {
+                            boolean inputStatus = false;
+                        }
+                    }
+                }
+            });
+
+
+        }
+
+        return inputText;
     }
 
     static class WorkPanel { // Внешний вид панелей
@@ -100,12 +158,17 @@ class UI {
             JMenu commandMenu = new JMenu("Операции");
             JMenu logsMenu = new JMenu("Логирование");
             JMenu findMenu = new JMenu("Поиск");
+            JMenu appMenu = new JMenu("Deployment's");
+
             JMenuItem clearPlaceItem = new JMenuItem("Очистить");
             clearPlaceItem.addActionListener(e -> ClearingWorkPlace());
             JMenuItem findTextItem = new JMenuItem("Натйи текст");
+            JMenuItem propertiesItem = new JMenuItem("Параметры сервера");
+            JMenuItem deployItem = new JMenuItem("Добавить прилоение");
+            JMenuItem undeployItem = new JMenuItem("Удалить приложение");
+
             findTextItem.setEnabled(false);
             findTextItem.addActionListener(e -> new Functions.FindText());
-            JMenuItem propertiesItem = new JMenuItem("Параметры сервера");
             propertiesItem.addActionListener(e -> {
                 ClearingWorkPlace();
                 TriggerEnabled(findTextItem);
@@ -126,7 +189,6 @@ class UI {
 
             JMenuItem openFileItem = new JMenuItem("Открыть файл");
             openFileItem.addActionListener(e -> new Functions.OpenFileDialog());
-
             JMenuItem stopLogItem = new JMenuItem("Остановить загрузку");
             JMenuItem startLogItem = new JMenuItem("Получить лог");
             startLogItem.addActionListener(e -> {
@@ -146,16 +208,34 @@ class UI {
                 startLogItem.setEnabled(true);
                 stopLogItem.setEnabled(false);
             });
+
+            deployItem.addActionListener(e -> new DeployApplication());
+            undeployItem.addActionListener(e -> {
+                try {
+                    new UndeployApplication();
+                } catch (IOException e1) {
+                    MessageBox(new Exception("Ошибка при выполнении команды\n" + e1));
+                }
+            });
+
             commandMenu.add(clearPlaceItem);
             commandMenu.add(propertiesItem);
             commandMenu.add(resetServer);
             commandMenu.add(openFileItem);
+
             logsMenu.add(startLogItem);
             logsMenu.add(stopLogItem);
+
             findMenu.add(findTextItem);
+
+            appMenu.add(deployItem);
+            appMenu.add(undeployItem);
+
             windowMenuBar.add(commandMenu);
             windowMenuBar.add(logsMenu);
             windowMenuBar.add(findMenu);
+            windowMenuBar.add(appMenu);
+
             setJMenuBar(windowMenuBar);
 
             findTextItem.setEnabled(false);
