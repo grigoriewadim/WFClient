@@ -1,5 +1,9 @@
 package WildFlyClient;
 
+/*
+    Класс отвечающий за создание подключения к серверу WildFly
+* */
+
 import org.jboss.as.controller.client.ModelControllerClient;
 
 import javax.security.auth.callback.Callback;
@@ -13,7 +17,7 @@ import java.net.InetAddress;
 import static WildFlyClient.Main.MessageBox;
 
 class Connection {
-    private final String loginTxt = Autorization.loginTxt.getText();
+    private final String loginTxt = Autorization.loginTxt.getText();    //Используем учетные данные из полей введенных в поля формы авторизации
     private final String passwordTxt = Autorization.passwordTxt.getText();
     static ModelControllerClient client;
 

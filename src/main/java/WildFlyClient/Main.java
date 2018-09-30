@@ -1,10 +1,12 @@
 package WildFlyClient;
 
 /*
-  The project of remote configuration and control of servers on the WildFly platform (JBoss Application Server),
-  so far in development. For authorization in the application registration data of WildFly are used,
-  the server can be chosen from the list.
- */
+  Проект для удаленного управления и конфигурирования серверами на базе WildFly (JBoss Application Server),
+  проект в процессе создания.
+
+  Main класс, вызывает форму авторизации.
+
+* */
 
 import javax.swing.*;
 import javax.swing.plaf.nimbus.NimbusLookAndFeel;
@@ -13,17 +15,19 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
 
-import static WildFlyClient.UI.GetDate;
+import static WildFlyClient.Functions.GetDate;
 
 public class Main {
 
     static void MessageBox(Exception exception) {
-        JOptionPane.showMessageDialog(new JFrame(), exception, "Ошибка", JOptionPane.ERROR_MESSAGE);
-        File filename = new File("exception_" + GetDate() + "_.log");
+        JOptionPane.showMessageDialog(new JFrame(), exception, "Ошибка", JOptionPane.ERROR_MESSAGE); //Вывод окна с эксепшеном
+        File filename = new File("exception_" + GetDate() + "_.log"); // Обявляем файл для записи эксепшенов
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
-            writer.write(GetDate() + "_" + exception.toString());
+            writer.write(GetDate() + "_" + exception.toString() + "\n");
+            writer.write(GetDate() + "_" + Arrays.toString(exception.getStackTrace()) + "\n");
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();

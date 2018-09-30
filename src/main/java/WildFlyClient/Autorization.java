@@ -1,5 +1,11 @@
 package WildFlyClient;
 
+/*
+    Класс отвечает за авторизацию в приложении, используется логин и пароль от административной у/з
+    сервера, эта же у/з в последствии используется для подключения к остальным серверам.
+    В случае успешной авторизации, вызывает класс UI
+* */
+
 import org.jboss.as.controller.client.ModelControllerClient;
 import org.jboss.as.controller.client.helpers.Operations;
 import org.jboss.dmr.ModelNode;
@@ -22,10 +28,10 @@ class Autorization {
     static JPasswordField passwordTxt = new JPasswordField(10);
 
     Autorization() throws Exception {
-        ArrayList hostList = UI.hostList;
+        ArrayList hostList = Functions.hostList; //Получаем коллекцию Ip адресов для JComboBox
         JTextField portField = new JTextField(5);
         JFrame autorizationFrame = new JFrame();
-        new UI.ReadConfig();
+        new Functions.ReadConfig();                 //Читаем конфиг
         final boolean[] success = new boolean[1];
         autorizationFrame.setSize(450, 210);
         autorizationFrame.setResizable(false);
@@ -39,7 +45,7 @@ class Autorization {
         JPanel selector = new JPanel();
         JLabel selectorLabel = new JLabel("IP адрес сервера для авторизации: ");
         JComboBox<String> comboBox = new JComboBox<>();
-        for (Object aHostList : hostList) {
+        for (Object aHostList : hostList) {             //Создаем item'ы из ip адресов коллекции
             comboBox.addItem(String.valueOf(aHostList));
         }
         selector.add(selectorLabel);
@@ -73,10 +79,10 @@ class Autorization {
         autorizationFrame.setVisible(true);
         autorizationFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         submitButton.addActionListener(e -> {
-            String serverSelector = comboBox.getSelectedItem().toString();
+            String serverSelector = comboBox.getSelectedItem().toString(); //Добавляем ActionListener для каждой позиции JComboBox
             try {
-                final ModelNode check = Operations.createOperation("status");
-                final ModelControllerClient checkHost = ModelControllerClient.Factory.create(
+                final ModelNode check = Operations.createOperation("status"); //Авторизуемся с учетными данными к выбранному серверу
+                ModelControllerClient checkHost = ModelControllerClient.Factory.create(
                         InetAddress.getByName(serverSelector), Integer.parseInt(portField.getText()),
                         callbacks -> {
                             for (Callback current : callbacks) {
