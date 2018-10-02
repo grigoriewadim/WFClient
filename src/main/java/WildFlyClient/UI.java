@@ -6,23 +6,25 @@ package WildFlyClient;
 import javax.swing.*;
 import javax.swing.border.EtchedBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.filechooser.FileSystemView;
 import javax.swing.text.Highlighter;
 import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 
-import static WildFlyClient.Main.MessageBox;
 import static WildFlyClient.Functions.*;
 import static WildFlyClient.Functions.DeploymentsButtons.appContainer;
+import static WildFlyClient.Main.MessageBox;
 
 class UI {
 
     static JTextArea textArea = new JTextArea();
     static boolean stopTrigger = false;
+    static File warFile;
 
     private static void TriggerEnabled(JMenuItem item) {
         item.setEnabled(true);
@@ -55,38 +57,54 @@ class UI {
             UIManager.put("OptionPane.cancelButtonText", "cancel");
             inputText = JOptionPane.showInputDialog(null, textInWin, title, JOptionPane.PLAIN_MESSAGE);
         }
-        if (option.equals("DEPLOY")) {
-            String name = "";
-            String runtimeName = "";
-            String status = "";
+        if (option.equals("LOG")) {
+            UIManager.put("OptionPane.okButtonText", "ok");
+            UIManager.put("OptionPane.cancelButtonText", "cancel");
+            inputText = JOptionPane.showInputDialog(null, textInWin, title, JOptionPane.QUESTION_MESSAGE);
+        }
+        return inputText;
+    }
+
+    static class DeployApplicationUI {
+        private JButton browseButton = new JButton();
+        private JCheckBox statusBox = new JCheckBox();
+        private String checkFile = "";
+        JTextField nameField = new JTextField();
+        JTextField runtimenameFild = new JTextField();
+        Boolean status = false;
+
+        DeployApplicationUI() {
             Object[] fields = {
-                    "Name:", name,
-                    "Runtime-Name:", runtimeName,
-                    "Enabled?", status,
+                    "", browseButton,
+                    "Name:", nameField,
+                    "Runtime-Name:", runtimenameFild,
+                    "Enabled?", statusBox,
             };
-            JTextField nameField = new JTextField(name);
-            JTextField runtimenameFild = new JTextField(runtimeName);
-            JCheckBox statusBox = new JCheckBox(status);
-            String inputName;
-            String inputRuntime;
-            JOptionPane.showInputDialog(null, fields);
-            statusBox.addChangeListener(new ChangeListener() {
-                @Override
-                public void stateChanged(ChangeEvent e) {
-                    if (e.getSource() == statusBox) {
-                        if (statusBox.isSelected()) {
-                            boolean inputStatus = true;
-                        } else {
-                            boolean inputStatus = false;
-                        }
+            browseButton.setText("Выбрать файл...");
+            browseButton.addActionListener(e -> {
+                JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+                jfc.setDialogTitle("Выбрать файл");
+                jfc.setAcceptAllFileFilterUsed(false);
+                FileNameExtensionFilter filter = new FileNameExtensionFilter("Wildfly deployments", "war", "ear");
+                jfc.addChoosableFileFilter(filter);
+                int returnValue = jfc.showOpenDialog(null);
+                if (returnValue == JFileChooser.APPROVE_OPTION) {
+                    warFile = jfc.getSelectedFile();
+                }
+                checkFile = warFile.getName();
+                nameField.setText(checkFile);
+                runtimenameFild.setText(checkFile);
+            });
+
+            JOptionPane.showMessageDialog(null, fields, "Добавление приложения", JOptionPane.PLAIN_MESSAGE);
+            statusBox.addChangeListener(e -> {
+                if (e.getSource() == statusBox) {
+                    if (statusBox.isSelected()) {
+                        status = true;
                     }
                 }
             });
-
-
         }
-
-        return inputText;
     }
 
     static class WorkPanel { // Внешний вид панелей
@@ -160,13 +178,18 @@ class UI {
             JMenu findMenu = new JMenu("Поиск");
             JMenu appMenu = new JMenu("Deployment's");
 
+            JMenuItem resetServer = new JMenuItem("Перезагрузить сервер");
+            JMenuItem shutdownServer = new JMenuItem("Отключить сервер");
             JMenuItem clearPlaceItem = new JMenuItem("Очистить");
-            clearPlaceItem.addActionListener(e -> ClearingWorkPlace());
             JMenuItem findTextItem = new JMenuItem("Натйи текст");
             JMenuItem propertiesItem = new JMenuItem("Параметры сервера");
             JMenuItem deployItem = new JMenuItem("Добавить прилоение");
             JMenuItem undeployItem = new JMenuItem("Удалить приложение");
+            JMenuItem stopLogItem = new JMenuItem("Остановить запись лога");
+            JMenuItem startLogItem = new JMenuItem("Писать лог в файл");
+            JMenuItem getLog = new JMenuItem("Выгрузить server.log");
 
+            clearPlaceItem.addActionListener(e -> ClearingWorkPlace());
             findTextItem.setEnabled(false);
             findTextItem.addActionListener(e -> new Functions.FindText());
             propertiesItem.addActionListener(e -> {
@@ -178,22 +201,26 @@ class UI {
                     MessageBox(new Exception(e1));
                 }
             });
-            JMenuItem resetServer = new JMenuItem("Перезагрузить!");
+
             resetServer.addActionListener(e -> {
                 try {
-                    new Functions.ShutdownServer();
+                    new Functions.ShutdownServer("RESET");
                 } catch (IOException e1) {
                     MessageBox(new Exception(e1));
                 }
             });
 
-            JMenuItem openFileItem = new JMenuItem("Открыть файл");
-            openFileItem.addActionListener(e -> new Functions.OpenFileDialog());
-            JMenuItem stopLogItem = new JMenuItem("Остановить загрузку");
-            JMenuItem startLogItem = new JMenuItem("Получить лог");
+            shutdownServer.addActionListener(e -> {
+                try {
+                    new Functions.ShutdownServer("SHUTDOWN");
+                } catch (IOException e1) {
+                    MessageBox(new Exception(e1));
+                }
+            });
+
             startLogItem.addActionListener(e -> {
                 ClearingWorkPlace();
-                textArea.append("[" + startDate + "]: Загрузка логфайла началась. \n");
+                textArea.append("[" + startDate + "]: Запись логфайла началась. \n");
                 try {
                     stopLogItem.setEnabled(true);
                     startLogItem.setEnabled(false);
@@ -204,12 +231,26 @@ class UI {
             });
             stopLogItem.addActionListener(e -> {
                 stopTrigger = true;
-                textArea.append("[" + endDate + "]: Загрузка логфайла закончена. \n");
+                textArea.append("[" + endDate + "]: Запись логфайла закончена. \n");
                 startLogItem.setEnabled(true);
                 stopLogItem.setEnabled(false);
             });
 
-            deployItem.addActionListener(e -> new DeployApplication());
+            getLog.addActionListener(e -> {
+                try {
+                    new GetLogs();
+                } catch (IOException e1) {
+                    MessageBox(new Exception(e1));
+                }
+            });
+
+            deployItem.addActionListener(e -> {
+                try {
+                    new DeployApplication();
+                } catch (IOException e1) {
+                    MessageBox(new Exception("Ошибка при выполнении команды\n" + e1));
+                }
+            });
             undeployItem.addActionListener(e -> {
                 try {
                     new UndeployApplication();
@@ -221,10 +262,11 @@ class UI {
             commandMenu.add(clearPlaceItem);
             commandMenu.add(propertiesItem);
             commandMenu.add(resetServer);
-            commandMenu.add(openFileItem);
+            commandMenu.add(shutdownServer);
 
             logsMenu.add(startLogItem);
             logsMenu.add(stopLogItem);
+            logsMenu.add(getLog);
 
             findMenu.add(findTextItem);
 
@@ -239,7 +281,6 @@ class UI {
             setJMenuBar(windowMenuBar);
 
             findTextItem.setEnabled(false);
-            openFileItem.setEnabled(false);
 
             for (final String aHostList : hostList) { // Добавляем ActionListener к каждой JButton с сервером
                 final JButton serverButton = new JButton();
@@ -251,7 +292,7 @@ class UI {
                     checkedServerLabel.setText(selectedHost); // в панель с выбранным сервером добавляем его ip
                     try {
                         findTextItem.setEnabled(true);
-                        openFileItem.setEnabled(true);
+//                        openFileItem.setEnabled(true);
                         appContainer.removeAll(); // Очищаем панель deployment'ов с выбранного сервера
                         new Functions.StatusDeployments(); // Вызываем класс с параметрами приложения
                         //Connection.client.close();

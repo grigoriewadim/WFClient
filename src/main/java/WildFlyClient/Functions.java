@@ -4,7 +4,6 @@ package WildFlyClient;
     Класс для всех функциональных классов и методов задействованных в UI
 * */
 
-import org.jboss.aesh.console.command.CommandResult;
 import org.jboss.as.cli.CliInitializationException;
 import org.jboss.as.cli.CommandFormatException;
 import org.jboss.as.cli.CommandLineException;
@@ -15,8 +14,6 @@ import org.jboss.as.controller.client.helpers.ClientConstants;
 import org.jboss.dmr.ModelNode;
 
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.filechooser.FileSystemView;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
 import javax.swing.text.Document;
@@ -39,7 +36,6 @@ class Functions {
     static String endDate = GetDate();
     static String selectedHost = null; //Выбранный сервер (для операций)
     static int serverPanelSize = 0;
-    //static int appPanelSize = 0;
 
     static String GetDate() { //Метод для получения текущей даты и времени
         DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyy_HH-mm-ss");
@@ -95,11 +91,26 @@ class Functions {
     }
 
     static class ShutdownServer {  // Класс для вызова команды перезагрузки сервера
-        ShutdownServer() throws IOException {
-            new Connection(selectedHost);
-            final ModelNode op = org.jboss.as.controller.client.helpers.Operations.createOperation("shutdown");
-            op.get("restart").set(true);
-            Connection.client.execute(op);
+        ShutdownServer(String option) throws IOException {
+            String request = "";
+            if (option.equals("SHUTDOWN")) {
+                request = "/:shutdown(timeout=0)";
+            }
+            if (option.equals("RESET")) {
+                request = "/:shutdown(restart=true,timeout=0)";
+            }
+            if (option.equals("RELOAD")) {
+                request = "/:reload";
+            }
+            try {
+                Connection.client.close();
+                Connection.ctx.connectController();
+                Connection.ctx.handle(request);
+            } catch (CommandFormatException e1) {
+                MessageBox(new Exception("Не корректно введено название!\n" + e1));
+            } catch (CommandLineException e1) {
+                MessageBox(new Exception(e1));
+            }
         }
     }
 
@@ -149,6 +160,21 @@ class Functions {
         }
     }
 
+    static class GetLogs {
+        GetLogs() throws IOException {
+            Object length = Integer.parseInt(PopupsWindows("LOG", "Введите количество строк: ", "Запрос"));
+            String request = "/subsystem=logging/log-file=server.log/:read-log-file(lines=" + length + ",skip=0)";
+            try {
+                Connection.client.close();
+                Connection.ctx.connectController();
+                Connection.ctx.handle(request);
+
+            } catch (CommandLineException e1) {
+                MessageBox(new Exception(e1));
+            }
+        }
+    }
+
     static class DeploymentsButtons { //Класс для прорисовки JButton's из HashMap c именем модуля и статусом вкл/выкл.
         // Функция disable/enable в процессе реализации
         static JPanel appContainer = new JPanel();
@@ -160,16 +186,14 @@ class Functions {
                 deploymentsButton.setText(appName);
                 deploymentsButton.setBackground(Color.GREEN);
                 appContainer.add(deploymentsButton);
-                String request = "/deployment=*/:read-operation-names(access-control=true)";
-                CommandResult[] printTrace = CommandResult.values();
+                String request = "/subsystem=/deployment= " + appName + ":read-resource";
                 deploymentsButton.addActionListener(e -> {
                     try {
                         Connection.client.close();
                         Connection.ctx.connectController();
                         Connection.ctx.handle(request);
-                        textArea.append(Arrays.toString(printTrace));
                     } catch (CommandLineException | IOException e1) {
-                        textArea.append(String.valueOf(e1));
+                        MessageBox(new Exception(e1));
                     }
 
                 });
@@ -178,8 +202,15 @@ class Functions {
                 deploymentsButton.setText(appName);
                 deploymentsButton.setBackground(Color.red);
                 appContainer.add(deploymentsButton);
+                String request = "/deployment=" + appName + ":read-resource";
                 deploymentsButton.addActionListener(e -> {
-
+                    try {
+                        Connection.client.close();
+                        Connection.ctx.connectController();
+                        Connection.ctx.handle(request);
+                    } catch (CommandLineException | IOException e1) {
+                        MessageBox(new Exception(e1));
+                    }
                 });
             }
 
@@ -213,21 +244,20 @@ class Functions {
     }
 
     static class DeployApplication {
-        DeployApplication() {
-            String request = "deploy --name=";
-            File file;
-            String name;
-            String runtimeName;
-            boolean status;
-            PopupsWindows("DEPLOY", "Введите параметры: ", "Добавление приложения");
+        DeployApplication() throws IOException {
+            DeployApplicationUI deployUI = new DeployApplicationUI();
+            String deployment_name = deployUI.nameField.getText();
+            String deployment_runtime_name = deployUI.runtimenameFild.getText();
+            String status;
+            if (deployUI.status) {
+                status = "enabled";
+            } else {
+                status = "disabled";
+            }
+            File warFile = UI.warFile;
 
-        }
-    }
-
-    static class UndeployApplication {
-        UndeployApplication() throws IOException {
-            String nameApplication = PopupsWindows("UNDEPLOY", "Runtime-Name удаляемого приложения: ", ""+selectedHost);
-            String request = "undeploy --name " + nameApplication;
+            String request = "deploy " + warFile.getAbsolutePath() +
+                    " --name=" + deployment_name + " --runtime-name=" + deployment_runtime_name + " --" + status;
             try {
                 Connection.client.close();
                 Connection.ctx.connectController();
@@ -240,20 +270,19 @@ class Functions {
         }
     }
 
-    static class OpenFileDialog { // Класс для выбора "war" приложения, для загрузки его в WF (В процессе реализации)
-        File openFile;
-
-        OpenFileDialog() {
-            JFileChooser jfc = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
-            jfc.setDialogTitle("Select an file");
-            jfc.setAcceptAllFileFilterUsed(false);
-            FileNameExtensionFilter filter = new FileNameExtensionFilter("Wildfly deployments", "war", "ear");
-            jfc.addChoosableFileFilter(filter);
-            int returnValue = jfc.showOpenDialog(null);
-            if (returnValue == JFileChooser.APPROVE_OPTION) {
-                openFile = jfc.getSelectedFile();
+    static class UndeployApplication {
+        UndeployApplication() throws IOException {
+            String nameApplication = PopupsWindows("UNDEPLOY", "Runtime-Name удаляемого приложения: ", "" + selectedHost);
+            String request = "undeploy --name " + nameApplication;
+            try {
+                Connection.client.close();
+                Connection.ctx.connectController();
+                Connection.ctx.handle(request);
+            } catch (CommandFormatException e1) {
+                MessageBox(new Exception("Не корректно введено название!\n" + e1));
+            } catch (CommandLineException e1) {
+                MessageBox(new Exception(e1));
             }
         }
     }
-
 }
