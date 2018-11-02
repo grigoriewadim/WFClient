@@ -109,7 +109,7 @@ class Functions {
             } catch (CommandFormatException e1) {
                 MessageBox(new Exception("Не корректно введено название!\n" + e1));
             } catch (CommandLineException e1) {
-                MessageBox(new Exception(e1));
+                textArea.append(e1.getMessage());
             }
         }
     }
@@ -170,7 +170,7 @@ class Functions {
                 Connection.ctx.handle(request);
 
             } catch (CommandLineException e1) {
-                MessageBox(new Exception(e1));
+                textArea.append(e1.getMessage());
             }
         }
     }
@@ -186,14 +186,14 @@ class Functions {
                 deploymentsButton.setText(appName);
                 deploymentsButton.setBackground(Color.GREEN);
                 appContainer.add(deploymentsButton);
-                String request = "/subsystem=/deployment= " + appName + ":read-resource";
+                String request = "/deployment= " + appName + "/:undeploy";
                 deploymentsButton.addActionListener(e -> {
                     try {
                         Connection.client.close();
                         Connection.ctx.connectController();
                         Connection.ctx.handle(request);
                     } catch (CommandLineException | IOException e1) {
-                        MessageBox(new Exception(e1));
+                        textArea.append(e1.getMessage());
                     }
 
                 });
@@ -202,14 +202,14 @@ class Functions {
                 deploymentsButton.setText(appName);
                 deploymentsButton.setBackground(Color.red);
                 appContainer.add(deploymentsButton);
-                String request = "/deployment=" + appName + ":read-resource";
+                String request = "/deployment=" + appName + "/:deploy";
                 deploymentsButton.addActionListener(e -> {
                     try {
                         Connection.client.close();
                         Connection.ctx.connectController();
                         Connection.ctx.handle(request);
                     } catch (CommandLineException | IOException e1) {
-                        MessageBox(new Exception(e1));
+                        textArea.append(e1.getMessage());
                     }
                 });
             }
@@ -237,7 +237,7 @@ class Functions {
                     //System.out.println(key +"  --  "+ value);
                 }
             } catch (IllegalArgumentException | CliInitializationException e) {
-                MessageBox(new Exception(e));
+                textArea.append(e.getMessage());
             }
 
         }
@@ -265,7 +265,7 @@ class Functions {
             } catch (CommandFormatException e1) {
                 MessageBox(new Exception("Не корректно введено название!\n" + e1));
             } catch (CommandLineException e1) {
-                MessageBox(new Exception(e1));
+                textArea.append(e1.getMessage());
             }
         }
     }
@@ -281,7 +281,7 @@ class Functions {
             } catch (CommandFormatException e1) {
                 MessageBox(new Exception("Не корректно введено название!\n" + e1));
             } catch (CommandLineException e1) {
-                MessageBox(new Exception(e1));
+                textArea.append(e1.getMessage());
             }
         }
     }

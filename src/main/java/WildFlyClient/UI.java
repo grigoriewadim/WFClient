@@ -133,7 +133,7 @@ class UI {
             final JPanel deploymentsPanel = new JPanel();
 
             new WorkPanel(755, 5, 300, 495, appContainer, false);
-            new WorkPanel(755, 5, 310, 490, deploymentsPanel, false);
+            new WorkPanel(755, 5, 310, 490, deploymentsPanel, true);
             new WorkPanel(5, 5, 180, 490, serverPanel, true);
             new WorkPanel(933, 500, 135, 38, checkedServerPanel, true);
             new WorkPanel(5, 500, 748, 38, progressBarPanel, true);
@@ -196,6 +196,7 @@ class UI {
                 ClearingWorkPlace();
                 TriggerEnabled(findTextItem);
                 try {
+                    textArea.setFont(new Font("Arial", Font.PLAIN, 11));
                     textArea.append(ServerParameters(selectedHost));
                 } catch (IOException e1) {
                     MessageBox(new Exception(e1));
@@ -333,7 +334,7 @@ class UI {
             textArea.setEditable(false);
             textArea.setLineWrap(true);
             textArea.setWrapStyleWord(true);
-            textArea.setBorder(new TitledBorder(new EtchedBorder(), "Текущиий СТАТУС: "));
+            textArea.setBorder(new TitledBorder(new EtchedBorder(), "Workplace: "));
             textArea.setForeground(Color.BLACK);
 
             add(checkedServerPanel);
